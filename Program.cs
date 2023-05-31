@@ -3,12 +3,14 @@ using IdentityManagementSample.Helpers;
 using IdentityManagementSample.Model;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<Filestore>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddAuthentication().AddCookie();
+builder.Services.AddDataProtection();
 
 builder.Services.AddAuthorization(builder =>
 {
@@ -62,6 +64,33 @@ app.MapGet("/promote", async (string username, Filestore db) =>
     await db.PutAsync(user);
 
     return "promoted!";
+});
+
+app.MapGet("/start-password-reset", async (string username, Filestore db, IDataProtectionProvider provider) =>
+{
+    //Generate hash and this can be sent out to the user through email, for verification.
+    var protector = provider.CreateProtector("PasswordReset");
+    var user = await db.GetUserAsync(username);
+    //protect more than the username, could be guid+username which is saved in the db. Due to a hacker can get the username.
+    return protector.Protect(user.Name);
+});
+
+app.MapGet("/end-password-reset", async (string username, string password, string hash, Filestore db, IDataProtectionProvider provider, IPasswordHasher<User> hasher) =>
+{
+    //User will provide the hash which has been sent to them, (the endpoint start pw reset), and the other required fields.
+    var protector = provider.CreateProtector("PasswordReset");
+
+    var hashUserName = protector.Unprotect(hash);
+    if (hashUserName != username)
+    {
+        return "bad hash";
+    }
+
+    var user = await db.GetUserAsync(username);
+    user.PasswordHash = hasher.HashPassword(user, password);
+    await db.PutAsync(user);
+
+    return "password reset";
 });
 
 app.MapGet("/protected", () =>
