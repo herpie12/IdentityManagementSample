@@ -1,10 +1,11 @@
-﻿using System.Security.Cryptography;
+﻿using IdentityManagementSample.Model;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
 namespace IdentityManagementSample
 {
-    public class Database
+    public class Filestore
     {
         private static string UserHash(string userName)
         {
@@ -27,22 +28,10 @@ namespace IdentityManagementSample
 
         public async Task PutAsync(User user)
         {
+            //hash username and use it as filename, could be email etc.
             var hash = UserHash(user.Name);
             await using var writer = File.OpenWrite(hash);
             await JsonSerializer.SerializeAsync(writer, user);
         }
-    }
-
-    public class User
-    {
-        public string Name { get; set; }
-        public string PasswordHash { get; set; }
-        public List<UserClaim> Claims { get; set; }
-    }
-
-    public class UserClaim
-    {
-        public string Type { get; set; }
-        public string Value { get; set; }
     }
 }
